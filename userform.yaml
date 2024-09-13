@@ -1,0 +1,114 @@
+name: UserFormAccs
+description: Inserts, deletes, and clears a range.
+host: EXCEL
+api_set: {}
+script:
+  content: >
+    document.getElementById("insert-data").addEventListener("click", () =>
+    tryCatch(insertData));
+
+
+    async function insertData() {
+      await Excel.run(async (context) => {
+        const sheet = context.workbook.worksheets.getItem("Sample");
+
+        // Cargamos el rango completo de la columna A de la fila 1 a la 250
+        const range = sheet.getRange("A1:A1000");
+        range.load("values");
+
+        await context.sync();
+
+        // Encontrar la primera celda vacía en el rango cargado
+        let emptyRow = -1;
+        for (let i = 0; i < range.values.length; i++) {
+          if (!range.values[i][0]) {
+            emptyRow = i + 1; // Encontramos la fila vacía (ajustamos por índice base 0)
+            break;
+          }
+        }
+
+        if (emptyRow > 0) {
+          const data = [
+            emptyRow - 1, // N°
+            "CUENTA DE", // Cuenta de
+            new Date().toLocaleString(), // Fecha y Hora
+            "email@example.com", // Email
+            "password123", // Password
+            "AÑADIDO DESDE SAMPLE2", // Usuario
+            "https://website.com", // Website URL
+            "CUENTA DE 2", // Cuenta de: 2
+            "Activo", // Estado
+            "Descripción" // Descripción
+          ];
+
+          // Insertamos los datos en la fila vacía encontrada
+          const insertRange = sheet.getRange(`A${emptyRow}:J${emptyRow}`);
+          insertRange.values = [data];
+
+          await context.sync();
+
+          document.getElementById("status").innerText = `Datos insertados en la fila ${emptyRow - 1}`;
+        } else {
+          document.getElementById("status").innerText = "No se encontró una fila vacía en el rango 0-250.";
+        }
+      });
+    }
+
+
+    /** Default helper for invoking an action and handling errors. */
+
+    async function tryCatch(callback) {
+      try {
+        await callback();
+      } catch (error) {
+        console.error(error);
+        document.getElementById("status").innerText = "Error: " + error.message;
+      }
+    }
+  language: typescript
+template:
+  content: "<div id=\"container\">\r\n\t<h1>Data Inserter</h1>\r\n\t<button id=\"insert-data\">Insert Data</button>\r\n\t<div id=\"status\"></div>\r\n</div>\r\n\r\n<!-- <script src=\"https://appsforoffice.microsoft.com/lib/1/hosted/office.js\"></script>\r\n<script src=\"script.js\"></script> -->"
+  language: html
+style:
+  content: |
+    #container {
+      margin: 50px;
+      text-align: center;
+    }
+
+    h1 {
+      color: #4472C4;
+    }
+
+    button {
+      background-color: #4472C4;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    button:hover {
+      background-color: #365f91;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-size: 16px;
+      color: green;
+    }
+  language: css
+libraries: |
+  https://appsforoffice.microsoft.com/lib/1/hosted/office.js
+  @types/office-js
+
+  office-ui-fabric-js@1.4.0/dist/css/fabric.min.css
+  office-ui-fabric-js@1.4.0/dist/css/fabric.components.min.css
+
+  core-js@2.4.1/client/core.min.js
+  @types/core-js
+
+  jquery@3.1.1
+  @types/jquery@3.3.1
