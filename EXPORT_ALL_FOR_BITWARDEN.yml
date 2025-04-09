@@ -31,7 +31,7 @@ script:
       }
     }
 
-    function getBitWardenJson(item, folderId) {
+    function getBitWardenJson(item, folderId, nameSheet) {
       return {
         passwordHistory: null,
         revisionDate: new Date().toISOString(),
@@ -42,7 +42,7 @@ script:
         folderId: folderId,
         type: 1,
         reprompt: 0,
-        name: String(item.cuentaDe),  // Convertir a string
+        name: item.cuentaDe ? String(item.cuentaDe) : String(nameSheet),  // Convertir a string
         notes: String(item.descripcion),  // Convertir a string
         favorite: false,
         fields: [
@@ -159,6 +159,7 @@ script:
                 obj[name] = row[index];
               });
               obj.folderId = folderId;
+              obj.sheetName = sheetName
               return obj;
             });
 
@@ -172,7 +173,7 @@ script:
         }
 
         if (combinedRows.length > 0) {
-          const formattedItems = combinedRows.map((item) => getBitWardenJson(item, item.folderId));
+          const formattedItems = combinedRows.map((item) => getBitWardenJson(item, item.folderId, item.sheetName));
 
           const bitWardenStructure = {
             encrypted: false,
