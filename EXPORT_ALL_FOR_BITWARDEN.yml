@@ -1,0 +1,271 @@
+name: EXPORT PRO FINAL WITH HEADERS
+description: exporta todo en json con headers
+host: EXCEL
+api_set: {}
+script:
+  content: >
+    document.getElementById("insert-data").addEventListener("click", () =>
+    tryCatch(insertData));
+
+
+    function generateUUID() {
+      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    }
+
+
+    function excelDateToISO(dateValue) {
+      if (typeof dateValue === "number") {
+        const msPerDay = 24 * 60 * 60 * 1000;
+        const epoch = new Date(Date.UTC(1899, 11, 30));
+        const date = new Date(epoch.getTime() + dateValue * msPerDay);
+        return date.toISOString();
+      }
+      try {
+        return new Date(dateValue).toISOString();
+      } catch {
+        return null;
+      }
+    }
+
+    function getBitWardenJson(item, folderId) {
+      return {
+        passwordHistory: null,
+        revisionDate: new Date().toISOString(),
+        creationDate: excelDateToISO(item.fechaHora),
+        deletedDate: null,
+        id: generateUUID(),
+        organizationId: null,
+        folderId: folderId,
+        type: 1,
+        reprompt: 0,
+        name: String(item.cuentaDe),  // Convertir a string
+        notes: String(item.descripcion),  // Convertir a string
+        favorite: false,
+        fields: [
+          {
+            name: "usuario",
+            value: String(item.usuario),  // Convertir a string
+            type: 0,
+            linkedId: null
+          },
+          {
+            name: "CUENTA DE 2",
+            value: String(item.cuentaDe2),  // Convertir a string
+            type: 0,
+            linkedId: null
+          },
+          {
+            name: "ESTADO",
+            value: String(item.estado),  // Convertir a string
+            type: 0,
+            linkedId: null
+          }
+        ],
+        login: {
+          fido2Credentials: [],
+          uris: [
+            {
+              match: null,
+              uri: String(item.website)  // Convertir a string
+            }
+          ],
+          username: String(item.email),  // Convertir a string
+          password: String(item.password),  // Convertir a string
+          totp: null
+        },
+        collectionIds: null
+      };
+    }
+
+
+
+    async function insertData() {
+      console.log("🔍 Iniciando revisión de todas las hojas...");
+
+      await Excel.run(async (context) => {
+        const workbook = context.workbook;
+        const worksheets = workbook.worksheets;
+        worksheets.load("items/name");
+        await context.sync();
+
+        let combinedRows = [];
+        let totalFilas = 0;
+        let folders = [];
+        let folderMap = {};
+
+        for (const sheet of worksheets.items) {
+          const sheetName = sheet.name;
+          console.log(`📄 Revisando hoja: ${sheetName}`);
+
+          const cellA1 = sheet.getRange("A1");
+          cellA1.load("values");
+          await context.sync();
+
+          if (cellA1.values.length > 0 && cellA1.values[0][0] === "N°") {
+            console.log(`✅ "${sheetName}" tiene "N°" en A1.`);
+
+            const folderId = generateUUID();
+            folders.push({ id: folderId, name: sheetName });
+            folderMap[sheetName] = folderId;
+
+            const usedRange = sheet.getUsedRange();
+            usedRange.load("rowCount");
+            await context.sync();
+
+            const lastRow = usedRange.rowCount;
+
+            // Si la hoja es "DISCORD", tiene columnas hasta la L
+            const isDiscord = sheetName === "DISCORD";
+            const range = sheet.getRange(`A2:${isDiscord ? "L" : "J"}${lastRow}`);
+            range.load("values");
+            await context.sync();
+
+            const headers = isDiscord
+              ? [
+                "numero",
+                "cuentaDe",
+                "fechaHora",
+                "email",
+                "password",
+                "usuario",
+                "website",
+                "cuentaDe2",
+                "estado",
+                "descripcion",
+                "token",
+                "nitro"
+              ]
+              : [
+                "numero",
+                "cuentaDe",
+                "fechaHora",
+                "email",
+                "password",
+                "usuario",
+                "website",
+                "cuentaDe2",
+                "estado",
+                "descripcion"
+              ];
+
+            const validRows = range.values.filter((row) => row.some((cell) => cell !== null && cell !== ""));
+            const result = validRows.map((row) => {
+              const obj = {};
+              headers.forEach((name, index) => {
+                obj[name] = row[index];
+              });
+              obj.folderId = folderId;
+              return obj;
+            });
+
+            console.log(result);
+            console.log(`✔️ ${result.length} filas válidas en hoja "${sheetName}"`);
+            totalFilas += result.length;
+            combinedRows = combinedRows.concat(result);
+          } else {
+            console.log(`❌ "${sheetName}" no tiene "N°" en A1. Omitiendo...`);
+          }
+        }
+
+        if (combinedRows.length > 0) {
+          const formattedItems = combinedRows.map((item) => getBitWardenJson(item, item.folderId));
+
+          const bitWardenStructure = {
+            encrypted: false,
+            folders: folders,
+            items: formattedItems
+          };
+
+          const jsonContent = JSON.stringify(bitWardenStructure, null, 2);
+          const base64Content = btoa(unescape(encodeURIComponent(jsonContent)));
+          const dataUri = `data:application/json;base64,${base64Content}`;
+
+          const downloadLink = document.createElement("a");
+          downloadLink.href = dataUri;
+          downloadLink.download = "datos-exportados.json";
+          downloadLink.textContent = "⬇️ Descargar JSON";
+          downloadLink.style.display = "inline-block";
+          downloadLink.style.marginTop = "10px";
+          downloadLink.style.padding = "8px 12px";
+          downloadLink.style.backgroundColor = "#4CAF50";
+          downloadLink.style.color = "white";
+          downloadLink.style.textDecoration = "none";
+          downloadLink.style.borderRadius = "5px";
+
+          const container = document.getElementById("download-link-container");
+          if (container) {
+            container.innerHTML = "";
+            container.appendChild(downloadLink);
+          } else {
+            document.body.appendChild(downloadLink);
+          }
+
+          console.log(`📊 Total de filas válidas en todas las hojas: ${totalFilas}`);
+          document.getElementById("status").innerText = `✅ Total de filas válidas: ${totalFilas} - JSON listo para descargar.`;
+        } else {
+          console.log("❌ No se encontraron datos válidos.");
+          document.getElementById("status").innerText = "❌ No se encontraron datos válidos.";
+        }
+      });
+    }
+
+
+    async function tryCatch(callback) {
+      try {
+        await callback();
+      } catch (error) {
+        console.error("❌ Error:", error);
+        document.getElementById("status").innerText = "❌ Error: " + error.message;
+      }
+    }
+  language: typescript
+template:
+  content: "<div id=\"container\">\r\n\t<h1>EXPORTAR TODO ALACHUCHA</h1>\r\n\t<button id=\"insert-data\">EXPORTAR TODO</button>\r\n\t<div id=\"status\"></div>\r\n\t<div id=\"download-link-container\"></div>\r\n</div>\r\n\r\n<!-- <script src=\"https://appsforoffice.microsoft.com/lib/1/hosted/office.js\"></script>\r\n<script src=\"script.js\"></script> -->"
+  language: html
+style:
+  content: |
+    #container {
+      margin: 50px;
+      text-align: center;
+    }
+
+    h1 {
+      color: #4472C4;
+    }
+
+    button {
+      background-color: #4472C4;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    button:hover {
+      background-color: #365f91;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-size: 16px;
+      color: green;
+    }
+  language: css
+libraries: |
+  https://appsforoffice.microsoft.com/lib/1/hosted/office.js
+  @types/office-js
+
+  office-ui-fabric-js@1.4.0/dist/css/fabric.min.css
+  office-ui-fabric-js@1.4.0/dist/css/fabric.components.min.css
+
+  core-js@2.4.1/client/core.min.js
+  @types/core-js
+
+  jquery@3.1.1
+  @types/jquery@3.3.1
