@@ -1,5 +1,5 @@
-name: UserFormAccs
-description: Inserts, deletes, and clears a range.
+name: EXPORT PRO FINAL WITH HEADERS
+description: exporta todo en json con headers
 host: EXCEL
 api_set: {}
 script:
@@ -8,66 +8,224 @@ script:
     tryCatch(insertData));
 
 
+    function generateUUID() {
+      return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+      });
+    }
+
+
+    function excelDateToISO(dateValue) {
+      if (typeof dateValue === "number") {
+        const msPerDay = 24 * 60 * 60 * 1000;
+        const epoch = new Date(Date.UTC(1899, 11, 30));
+        const date = new Date(epoch.getTime() + dateValue * msPerDay);
+        return date.toISOString();
+      }
+      try {
+        return new Date(dateValue).toISOString();
+      } catch {
+        return null;
+      }
+    }
+
+    function getBitWardenJson(item, folderId, nameSheet) {
+      return {
+        passwordHistory: null,
+        revisionDate: new Date().toISOString(),
+        creationDate: excelDateToISO(item.fechaHora),
+        deletedDate: null,
+        id: generateUUID(),
+        organizationId: null,
+        folderId: folderId,
+        type: 1,
+        reprompt: 0,
+        name: item.cuentaDe ? String(item.cuentaDe) : String(nameSheet),  // Convertir a string
+        notes: String(item.descripcion),  // Convertir a string
+        favorite: false,
+        fields: [
+          {
+            name: "usuario",
+            value: String(item.usuario),  // Convertir a string
+            type: 0,
+            linkedId: null
+          },
+          {
+            name: "CUENTA DE 2",
+            value: String(item.cuentaDe2),  // Convertir a string
+            type: 0,
+            linkedId: null
+          },
+          {
+            name: "ESTADO",
+            value: String(item.estado),  // Convertir a string
+            type: 0,
+            linkedId: null
+          }
+        ],
+        login: {
+          fido2Credentials: [],
+          uris: [
+            {
+              match: null,
+              uri: String(item.website)  // Convertir a string
+            }
+          ],
+          username: String(item.email),  // Convertir a string
+          password: String(item.password),  // Convertir a string
+          totp: null
+        },
+        collectionIds: null
+      };
+    }
+
+
+
     async function insertData() {
+      console.log("🔍 Iniciando revisión de todas las hojas...");
+
       await Excel.run(async (context) => {
-        const sheet = context.workbook.worksheets.getItem("Sample");
-
-        // Cargamos el rango completo de la columna A de la fila 1 a la 250
-        const range = sheet.getRange("A1:A1000");
-        range.load("values");
-
+        const workbook = context.workbook;
+        const worksheets = workbook.worksheets;
+        worksheets.load("items/name");
         await context.sync();
 
-        // Encontrar la primera celda vacía en el rango cargado
-        let emptyRow = -1;
-        for (let i = 0; i < range.values.length; i++) {
-          if (!range.values[i][0]) {
-            emptyRow = i + 1; // Encontramos la fila vacía (ajustamos por índice base 0)
-            break;
+        let combinedRows = [];
+        let totalFilas = 0;
+        let folders = [];
+        let folderMap = {};
+
+        for (const sheet of worksheets.items) {
+          const sheetName = sheet.name;
+          console.log(`📄 Revisando hoja: ${sheetName}`);
+
+          const cellA1 = sheet.getRange("A1");
+          cellA1.load("values");
+          await context.sync();
+
+          if (cellA1.values.length > 0 && cellA1.values[0][0] === "N°") {
+            console.log(`✅ "${sheetName}" tiene "N°" en A1.`);
+
+            const folderId = generateUUID();
+            folders.push({ id: folderId, name: sheetName });
+            folderMap[sheetName] = folderId;
+
+            const usedRange = sheet.getUsedRange();
+            usedRange.load("rowCount");
+            await context.sync();
+
+            const lastRow = usedRange.rowCount;
+
+            // Si la hoja es "DISCORD", tiene columnas hasta la L
+            const isDiscord = sheetName === "DISCORD";
+            const range = sheet.getRange(`A2:${isDiscord ? "L" : "J"}${lastRow}`);
+            range.load("values");
+            await context.sync();
+
+            const headers = isDiscord
+              ? [
+                "numero",
+                "cuentaDe",
+                "fechaHora",
+                "email",
+                "password",
+                "usuario",
+                "website",
+                "cuentaDe2",
+                "estado",
+                "descripcion",
+                "token",
+                "nitro"
+              ]
+              : [
+                "numero",
+                "cuentaDe",
+                "fechaHora",
+                "email",
+                "password",
+                "usuario",
+                "website",
+                "cuentaDe2",
+                "estado",
+                "descripcion"
+              ];
+
+            const validRows = range.values.filter((row) => row.some((cell) => cell !== null && cell !== ""));
+            const result = validRows.map((row) => {
+              const obj = {};
+              headers.forEach((name, index) => {
+                obj[name] = row[index];
+              });
+              obj.folderId = folderId;
+              obj.sheetName = sheetName
+              return obj;
+            });
+
+            console.log(result);
+            console.log(`✔️ ${result.length} filas válidas en hoja "${sheetName}"`);
+            totalFilas += result.length;
+            combinedRows = combinedRows.concat(result);
+          } else {
+            console.log(`❌ "${sheetName}" no tiene "N°" en A1. Omitiendo...`);
           }
         }
 
-        if (emptyRow > 0) {
-          const data = [
-            emptyRow - 1, // N°
-            "CUENTA DE", // Cuenta de
-            new Date().toLocaleString(), // Fecha y Hora
-            "email@example.com", // Email
-            "password123", // Password
-            "AÑADIDO DESDE SAMPLE2", // Usuario
-            "https://website.com", // Website URL
-            "CUENTA DE 2", // Cuenta de: 2
-            "Activo", // Estado
-            "Descripción" // Descripción
-          ];
+        if (combinedRows.length > 0) {
+          const formattedItems = combinedRows.map((item) => getBitWardenJson(item, item.folderId, item.sheetName));
 
-          // Insertamos los datos en la fila vacía encontrada
-          const insertRange = sheet.getRange(`A${emptyRow}:J${emptyRow}`);
-          insertRange.values = [data];
+          const bitWardenStructure = {
+            encrypted: false,
+            folders: folders,
+            items: formattedItems
+          };
 
-          await context.sync();
+          const jsonContent = JSON.stringify(bitWardenStructure, null, 2);
+          const base64Content = btoa(unescape(encodeURIComponent(jsonContent)));
+          const dataUri = `data:application/json;base64,${base64Content}`;
 
-          document.getElementById("status").innerText = `Datos insertados en la fila ${emptyRow - 1}`;
+          const downloadLink = document.createElement("a");
+          downloadLink.href = dataUri;
+          downloadLink.download = "datos-exportados.json";
+          downloadLink.textContent = "⬇️ Descargar JSON";
+          downloadLink.style.display = "inline-block";
+          downloadLink.style.marginTop = "10px";
+          downloadLink.style.padding = "8px 12px";
+          downloadLink.style.backgroundColor = "#4CAF50";
+          downloadLink.style.color = "white";
+          downloadLink.style.textDecoration = "none";
+          downloadLink.style.borderRadius = "5px";
+
+          const container = document.getElementById("download-link-container");
+          if (container) {
+            container.innerHTML = "";
+            container.appendChild(downloadLink);
+          } else {
+            document.body.appendChild(downloadLink);
+          }
+
+          console.log(`📊 Total de filas válidas en todas las hojas: ${totalFilas}`);
+          document.getElementById("status").innerText = `✅ Total de filas válidas: ${totalFilas} - JSON listo para descargar.`;
         } else {
-          document.getElementById("status").innerText = "No se encontró una fila vacía en el rango 0-250.";
+          console.log("❌ No se encontraron datos válidos.");
+          document.getElementById("status").innerText = "❌ No se encontraron datos válidos.";
         }
       });
     }
 
 
-    /** Default helper for invoking an action and handling errors. */
-
     async function tryCatch(callback) {
       try {
         await callback();
       } catch (error) {
-        console.error(error);
-        document.getElementById("status").innerText = "Error: " + error.message;
+        console.error("❌ Error:", error);
+        document.getElementById("status").innerText = "❌ Error: " + error.message;
       }
     }
   language: typescript
 template:
-  content: "<div id=\"container\">\r\n\t<h1>Data Inserter</h1>\r\n\t<button id=\"insert-data\">Insert Data</button>\r\n\t<div id=\"status\"></div>\r\n</div>\r\n\r\n<!-- <script src=\"https://appsforoffice.microsoft.com/lib/1/hosted/office.js\"></script>\r\n<script src=\"script.js\"></script> -->"
+  content: "<div id=\"container\">\r\n\t<h1>EXPORTAR TODO ALACHUCHA</h1>\r\n\t<button id=\"insert-data\">EXPORTAR TODO</button>\r\n\t<div id=\"status\"></div>\r\n\t<div id=\"download-link-container\"></div>\r\n</div>\r\n\r\n<!-- <script src=\"https://appsforoffice.microsoft.com/lib/1/hosted/office.js\"></script>\r\n<script src=\"script.js\"></script> -->"
   language: html
 style:
   content: |
