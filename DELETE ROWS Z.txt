@@ -1,0 +1,30 @@
+document.getElementById("delete-row").addEventListener("click", () => tryCatch(deleteRowInAllSheets));
+
+async function deleteRowInAllSheets() {
+  console.log("🧹 Eliminando la fila completa 111 en todas las hojas...");
+
+  await Excel.run(async (context) => {
+    const workbook = context.workbook;
+    const worksheets = workbook.worksheets;
+    worksheets.load("items/name");
+    await context.sync();
+
+    for (const sheet of worksheets.items) {
+      const fullRow = sheet.getRange("111:111"); // Toda la fila 111
+      fullRow.delete(Excel.DeleteShiftDirection.up); // Elimina y desplaza hacia arriba
+      console.log(`✅ Fila 111 eliminada en hoja "${sheet.name}"`);
+    }
+
+    await context.sync();
+    document.getElementById("status").innerText = "🗑️ Fila 111 eliminada en todas las hojas.";
+  });
+}
+
+async function tryCatch(callback) {
+  try {
+    await callback();
+  } catch (error) {
+    console.error("❌ Error:", error);
+    document.getElementById("status").innerText = "❌ Error: " + error.message;
+  }
+}

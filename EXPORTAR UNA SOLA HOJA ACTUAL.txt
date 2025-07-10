@@ -1,0 +1,101 @@
+name: EXPORT SINGULAR
+description: Inserts, deletes, and clears a range.
+host: EXCEL
+api_set: {}
+script:
+  content: >
+    document.getElementById("insert-data").addEventListener("click", () =>
+    tryCatch(insertData));
+
+
+    async function insertData() {
+      console.log("🔍 Procesando solo la hoja activa...");
+
+      await Excel.run(async (context) => {
+        const sheet = context.workbook.worksheets.getActiveWorksheet();
+
+        // Cargar celda A1
+        const cellA1 = sheet.getRange("A1");
+        cellA1.load("values");
+        await context.sync();
+
+        if (cellA1.values.length > 0 && cellA1.values[0][0] === "N°") {
+          console.log('✅ A1 contiene "N°". Procesando datos...');
+
+          const usedRange = sheet.getUsedRange();
+          usedRange.load("rowCount");
+          await context.sync();
+
+          const lastRow = usedRange.rowCount;
+          const dataRange = sheet.getRange(`A2:J${lastRow}`);
+          dataRange.load("values");
+          await context.sync();
+
+          const validRows = dataRange.values.filter((row) => row.some((cell) => cell !== null && cell !== ""));
+
+          console.log(`✅ Total de filas válidas: ${validRows.length}`);
+          document.getElementById("status").innerText = `✅ Total de filas válidas: ${validRows.length}`;
+          console.log(validRows);
+        } else {
+          console.log('❌ La celda A1 no contiene "N°".');
+          document.getElementById("status").innerText = '❌ La celda A1 no contiene "N°".';
+        }
+      });
+    }
+
+
+    async function tryCatch(callback) {
+      try {
+        await callback();
+      } catch (error) {
+        console.error(error);
+        document.getElementById("status").innerText = "❌ Error: " + error.message;
+      }
+    }
+  language: typescript
+template:
+  content: "<div id=\"container\">\r\n\t<h1>Data EXPORTER</h1>\r\n\t<button id=\"insert-data\">Insert Data</button>\r\n\t<div id=\"status\"></div>\r\n\t<div id=\"download-link-container\"></div>\r\n</div>\r\n\r\n<!-- <script src=\"https://appsforoffice.microsoft.com/lib/1/hosted/office.js\"></script>\r\n<script src=\"script.js\"></script> -->"
+  language: html
+style:
+  content: |
+    #container {
+      margin: 50px;
+      text-align: center;
+    }
+
+    h1 {
+      color: #4472C4;
+    }
+
+    button {
+      background-color: #4472C4;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    button:hover {
+      background-color: #365f91;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-size: 16px;
+      color: green;
+    }
+  language: css
+libraries: |
+  https://appsforoffice.microsoft.com/lib/1/hosted/office.js
+  @types/office-js
+
+  office-ui-fabric-js@1.4.0/dist/css/fabric.min.css
+  office-ui-fabric-js@1.4.0/dist/css/fabric.components.min.css
+
+  core-js@2.4.1/client/core.min.js
+  @types/core-js
+
+  jquery@3.1.1
+  @types/jquery@3.3.1

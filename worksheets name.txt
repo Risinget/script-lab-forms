@@ -1,0 +1,89 @@
+name: WORKSHEETS NAME
+description: Inserts, deletes, and clears a range.
+host: EXCEL
+api_set: {}
+script:
+  content: >
+    document.getElementById("print-sheet-names").addEventListener("click", () =>
+    tryCatch(printSheetNames));
+
+
+    async function printSheetNames() {
+      await Excel.run(async (context) => {
+        const workbook = context.workbook;
+        const worksheets = workbook.worksheets;
+        worksheets.load("items/name"); // Carga los nombres de todas las hojas
+        await context.sync();
+
+        const sheetNames = worksheets.items.map((sheet) => sheet.name);
+
+        // Imprime los nombres de las hojas en la consola
+        console.log("Nombres de las hojas:", sheetNames);
+
+        // Opcional: mostrar los nombres de las hojas en el contenedor HTML
+        const container = document.getElementById("sheet-names-container");
+        container.innerHTML = ""; // Limpiar contenido previo
+        sheetNames.forEach((name) => {
+          const paragraph = document.createElement("p");
+          paragraph.textContent = name;
+          container.appendChild(paragraph);
+        });
+      });
+    }
+
+
+    async function tryCatch(callback) {
+      try {
+        await callback();
+      } catch (error) {
+        console.error(error);
+        document.getElementById("status").innerText = "❌ Error: " + error.message;
+      }
+    }
+  language: typescript
+template:
+  content: "<div id=\"container\">\r\n\t<h1>sheets name</h1>\r\n<button id=\"print-sheet-names\">Imprimir nombres de hojas</button>\r\n<div id=\"sheet-names-container\"></div>\r\n</div>\r\n\r\n<!-- <script src=\"https://appsforoffice.microsoft.com/lib/1/hosted/office.js\"></script>\r\n<script src=\"script.js\"></script> -->"
+  language: html
+style:
+  content: |
+    #container {
+      margin: 50px;
+      text-align: center;
+    }
+
+    h1 {
+      color: #4472C4;
+    }
+
+    button {
+      background-color: #4472C4;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-top: 20px;
+    }
+
+    button:hover {
+      background-color: #365f91;
+    }
+
+    #status {
+      margin-top: 20px;
+      font-size: 16px;
+      color: green;
+    }
+  language: css
+libraries: |
+  https://appsforoffice.microsoft.com/lib/1/hosted/office.js
+  @types/office-js
+
+  office-ui-fabric-js@1.4.0/dist/css/fabric.min.css
+  office-ui-fabric-js@1.4.0/dist/css/fabric.components.min.css
+
+  core-js@2.4.1/client/core.min.js
+  @types/core-js
+
+  jquery@3.1.1
+  @types/jquery@3.3.1
